@@ -112,6 +112,10 @@ tr.r1 td{background:var(--cream);}
 .rmatch-row{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:10px 0 2px;}
 .rmatch-row button{border:1.5px solid var(--line); background:#fff; border-radius:14px; padding:5px 11px; font-size:.78rem; font-weight:700; cursor:pointer; font-family:inherit; color:var(--ink);}
 .rmatch-row button.sel{border-color:var(--blue); background:var(--blue-soft); color:var(--blue-deep);}
+.rate-grid{display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; margin:10px 0 6px; text-align:left;}
+.rate-grid label{font-size:.76rem; font-weight:700; color:var(--blue-deep);}
+.rate-grid select{margin:2px 0 0; padding:7px;}
+.rate-total{font-size:1.05rem; font-weight:800; color:#B28704; margin:6px 0 2px;}
 #regBox.on{display:flex !important;}
 .reg-grid{display:grid; grid-template-columns:1fr 1fr; gap:0 8px;}
 .reg-grid .full{grid-column:1/-1;}
@@ -251,9 +255,10 @@ tr.r1 td{background:var(--cream);}
 .round-block{display:flex; flex-direction:column; gap:8px;}
 .round-label{text-align:center; font-size:.8rem; color:var(--blue-deep); background:var(--blue-soft); border-radius:14px; padding:5px 16px; width:-webkit-fit-content; width:fit-content; margin:0 auto; position:relative; z-index:1;}
 .round-row{display:flex; gap:10px; justify-content:center; align-items:stretch;}
-.round-row.rr-spread{justify-content:space-between;}
+.round-row.rr-spread{justify-content:space-between; padding:0 3%;}
 .round-row.rr-left{justify-content:flex-start; padding-left:3%;}
 .bm-skip{order:99; margin-left:auto;}
+.round-row.rr-left .bm{max-width:47%;} /* 아래 행 카드 폭을 위 행(2칸)과 맞춰 세로 정렬 */
 .round-row .bm{flex:1 1 0; max-width:260px; min-width:0;}
 .bm{background:#fff; border:1.5px solid var(--line); border-radius:10px; padding:8px; font-size:.82rem; position:relative; z-index:1;}
 .bm.done{border-color:var(--green);}
@@ -563,14 +568,10 @@ textarea{resize:vertical; min-height:60px;}
       <div class="festival-note" style="margin-bottom:8px">별점은 순위가 아니라 <b>응원과 격려의 박수</b>예요. 오늘 열심히 뛴 선수에게 따뜻한 별을 보내 주세요! 🎉</div>
       <div id="ratePlayerName" style="font-weight:700; font-size:.95rem"></div>
       <div id="rateMatches" class="rmatch-row"></div>
-      <div class="star-row" id="rateStars">
-        <button data-v="1" onclick="submitRate(1)">⭐</button>
-        <button data-v="2" onclick="submitRate(2)">⭐</button>
-        <button data-v="3" onclick="submitRate(3)">⭐</button>
-        <button data-v="4" onclick="submitRate(4)">⭐</button>
-        <button data-v="5" onclick="submitRate(5)">⭐</button>
-      </div>
+      <div class="rate-grid" id="rateGrid"></div>
+      <div id="rateTotalView" class="rate-total">예상 평점 ★ -</div>
       <div id="rateHint" class="muted"></div>
+      <button class="cta" onclick="submitRateForm()">⭐ 평점 보내기</button>
       <button class="cta" style="background:var(--pill); color:#555; margin-top:12px" onclick="document.getElementById('rateBox').classList.remove('on')">닫기</button>
     </div>
   </div>
@@ -1401,9 +1402,9 @@ function togglePlayers(gender, school, idx){
       var img = (p.photo && photos && photos[p.photo.replace(/\.(png|jpg|jpeg|gif|webp)\s*$/i,'')])
         ? '<img src="'+photos[p.photo.replace(/\.(png|jpg|jpeg|gif|webp)\s*$/i,'')]+'" alt="">'
         : '<div class="noimg">'+esc((p.name||'?')[0])+'</div>';
-      var rt = ratingOf(gender, school, p.no);
+      var rt = ratingTotalOf(gender, school, p.no);
       var fin = state.data.rateOpen !== false && finishedMatchesOf(gender, school).length > 0;
-      var rateHtml = (rt ? '<div class="prate">★ '+rt.avg+' <span class="rc">('+rt.cnt+')</span></div>' : '')
+      var rateHtml = (rt ? '<div class="prate">★ '+rt.total+' <span class="rc">(평가 '+rt.base+'·'+rt.cnt+'명 + 인지도 '+rt.bonus+')</span></div>' : '')
         + (fin
             ? '<button class="rate-btn" onclick="openRate(\''+esc(gender)+'\',\''+esc(school)+'\',\''+esc(p.no||'-')+'\',\''+esc(p.name)+'\')">⭐ 평점 주기</button>'
             : '<button class="rate-btn" disabled>경기 후 평점 가능</button>');
@@ -1429,6 +1430,16 @@ function togglePlayers(gender, school, idx){
   google.script.run.withSuccessHandler(function(json){
     state.photos[key] = JSON.parse(json); draw(state.photos[key]);
   }).getTeamPhotos(gender, school);
+}
+function fameBonusOf(gender, school, no){
+  return Math.min(3, Math.round(fameOf(gender, school, no) / 2 * 10) / 10); // 인지도÷2, 최대 3점
+}
+function ratingTotalOf(gender, school, no){
+  var r = ratingOf(gender, school, no);
+  var b = fameBonusOf(gender, school, no);
+  if(!r && !b) return null;
+  var base = r ? r.avg : 0;
+  return { base: base, cnt: r ? r.cnt : 0, bonus: b, total: Math.round((base + b) * 10) / 10 };
 }
 function ratingOf(gender, school, no){
   var list = (state.data && state.data.ratings) || [];
@@ -1459,11 +1470,29 @@ function finishedMatchesOf(gender, school){
   return out;
 }
 var rateTarget = null;
+var RATE_ELS = ['슈팅','패스','드리블','수비','스피드','체력'];
+function buildRateGrid_(){
+  var opts = '';
+  for(var v=30; v<=100; v+=5){ opts += '<option value="'+v+'"'+(v===65?' selected':'')+'>'+v+'</option>'; }
+  $('rateGrid').innerHTML = RATE_ELS.map(function(el){
+    return '<label>'+el+'<select class="rate-el" onchange="updateRateTotal()">'+opts+'</select></label>';
+  }).join('');
+}
+function rateFormScore_(){
+  var sum = 0;
+  document.querySelectorAll('.rate-el').forEach(function(s){ sum += parseInt(s.value, 10) || 0; });
+  return Math.round(sum / 60 * 100) / 100; // 6요소(각 30~100) 합 ÷ 60 = 3.00 ~ 10.00
+}
+function updateRateTotal(){
+  $('rateTotalView').textContent = '예상 평점 ★ ' + rateFormScore_().toFixed(2);
+}
 function openRate(gender, school, no, name){
   var matches = finishedMatchesOf(gender, school);
   if(!matches.length){ toast('아직 마친 경기가 없어요.'); return; }
   rateTarget = { gender: gender, school: school, no: no, name: name, matchNo: null };
   $('ratePlayerName').textContent = school + ' No.' + no + ' ' + name;
+  buildRateGrid_();
+  updateRateTotal();
   var mrow = $('rateMatches');
   mrow.innerHTML = matches.map(function(m){
     return '<button data-m="'+esc(m.no)+'" onclick="selectRateMatch(\''+esc(m.no)+'\')">'+esc(m.label)+'</button>';
@@ -1480,25 +1509,20 @@ function selectRateMatch(matchNo){
   var t = rateTarget;
   var my = lsGet('sc_rate', {})[t.gender+'|'+t.school+'|'+t.no+'|'+t.matchNo];
   $('rateHint').textContent = my
-    ? '이 경기 내 평점: ★' + my + ' (다시 선택하면 수정됩니다)'
-    : '이 경기에서의 활약에 별을 보내 주세요 (경기당 1회)';
-  document.querySelectorAll('#rateStars button').forEach(function(b){
-    b.classList.toggle('on', !!my && parseInt(b.dataset.v,10) <= my);
-  });
+    ? '이 경기 내 평점: ★' + my + ' (다시 보내면 수정됩니다)'
+    : '요소별로 골라주세요 — 합산 점수가 평점이 돼요 (경기당 1회)';
 }
-function submitRate(score){
+function submitRateForm(){
   if(!rateTarget || !rateTarget.matchNo){ toast('평점을 남길 경기를 먼저 선택하세요.'); return; }
   var t = rateTarget;
-  document.querySelectorAll('#rateStars button').forEach(function(b){
-    b.classList.toggle('on', parseInt(b.dataset.v,10) <= score);
-  });
+  var score = rateFormScore_();
   google.script.run.withSuccessHandler(function(json){
     var r = JSON.parse(json);
     if(r.ok){
       var my = lsGet('sc_rate', {});
       my[t.gender+'|'+t.school+'|'+t.no+'|'+t.matchNo] = score;
       lsSet('sc_rate', my);
-      toast(r.updated ? '평점을 수정했어요! ⭐' : '응원의 별점 전달 완료! ⭐');
+      toast(r.updated ? '평점을 수정했어요! ⭐' : '응원의 평점 전달 완료! ⭐');
       $('rateBox').classList.remove('on');
       fetchData(false);
     } else if(r.reason==='closed'){ toast('평점 접수가 마감되었습니다.'); $('rateBox').classList.remove('on'); }
@@ -1824,26 +1848,32 @@ function renderRecord(){
     var bottomRound = mainRounds[mainRounds.length-1];
     state.byeEntries = [];
     var rIdx = {}; displayRounds.forEach(function(r, i){ rIdx[r] = i; });
-    var skipRight = {};
+    var skipRight = {}, placeRow = {};
     list.forEach(function(m){
       var tgt = list.filter(function(t){
         return String(t.rawHome).trim() === 'W:'+m.id || String(t.rawAway).trim() === 'W:'+m.id;
       })[0];
-      if(tgt && (rIdx[m.round] - rIdx[tgt.round]) > 1) skipRight[m.id] = true;
+      if(tgt && (rIdx[m.round] - rIdx[tgt.round]) > 1){
+        skipRight[m.id] = true;
+        placeRow[m.id] = displayRounds[rIdx[tgt.round] + 1] || m.round; // 목적지 바로 아래 행(같은 높이)
+      }
     });
     var hasSkip = Object.keys(skipRight).length > 0;
     html += '<div class="card"><h3>🏆 '+esc(g)+' 대진표</h3><p class="muted" style="margin-top:-4px;margin-bottom:6px">🔴 빨간 선 = 승자 진출 경로 (위로 올라갈수록 상위 라운드)</p><div class="bracket" id="bracketBox2">'
       + displayRounds.map(function(r, ri){
-          var ms = list.filter(function(m){return m.round===r;});
+          var ms = list.filter(function(m){ return (skipRight[m.id] ? placeRow[m.id] : m.round) === r; });
           var cards = ms.map(function(m){
             var h = bracketCard(m);
-            if(skipRight[m.id]) h = h.replace('class="bm', 'class="bm bm-skip');
+            if(skipRight[m.id]){
+              h = h.replace('class="bm', 'class="bm bm-skip');
+              h = h.replace('<div class="rid">', '<div class="rid">'+esc(m.round)+' · '); // 원 라운드 표기(예: 5강)
+            }
             return h;
           }).join('');
           var rowCls = '';
-          if(hasSkip){
-            if(r === bottomRound) rowCls = ' rr-spread';           // 5강: 왼쪽 F1 · 오른쪽 F2
-            else if(ri > 0 && !/3.?4위|3위/.test(r)) rowCls = ' rr-left'; // 4강: 왼쪽 치우침
+          if(hasSkip && !/3.?4위|3위/.test(r)){
+            if(ms.some(function(m){ return skipRight[m.id]; })) rowCls = ' rr-spread'; // 4강 행: 좌 4강 · 우 직행(같은 높이)
+            else if(ri > 0) rowCls = ' rr-left';                                      // 아래 행: 왼쪽 열 정렬
           }
           return '<div class="round-block"><h4 class="round-label">'+esc(r)+'</h4><div class="round-row'+rowCls+'">'+cards+'</div></div>';
         }).join('')
@@ -1952,7 +1982,8 @@ function renderPStats(){
   /* 🌟 올해의 베스트5 — 평점 순, 인조잔디 배경 */
   var b5 = (d.ratings || []).filter(function(r){ return r.gender===g; }).map(function(r){
     var p = (d.players||[]).filter(function(x){ return x.gender===g && x.school===r.school && String(x.no)===String(r.no); })[0];
-    return { school: r.school, no: r.no, avg: r.avg, cnt: r.cnt, name: p ? p.name : 'No.'+r.no, photo: p ? p.photo : '' };
+    var tot = ratingTotalOf(g, r.school, r.no);
+    return { school: r.school, no: r.no, avg: tot ? tot.total : r.avg, cnt: r.cnt, name: p ? p.name : 'No.'+r.no, photo: p ? p.photo : '' };
   });
   b5.sort(function(a,b){ return b.avg-a.avg || b.cnt-a.cnt; });
   b5 = b5.slice(0,5);
@@ -2335,7 +2366,7 @@ function playerAbility(gender, school, p){
   var rnd = seededRnd_(seedHash_(gender+'|'+school+'|'+p.no+'|'+p.name));
   var rt = ratingOf(gender, school, p.no);
   var base, rated = false;
-  if(rt){ base = Math.round(58 + rt.avg*8); rated = true; }   // ★1→66 … ★5→98
+  if(rt){ base = Math.round(44 + rt.avg*5.5); rated = true; } // ★3→61 … ★10→99
   else { base = 74 + Math.floor(rnd()*18); }                   // 대회 전: 74~91 랜덤
   // 개인기록 보너스: 골→슈팅, 도움→패스
   var ps = (state.data.pstats||[]).filter(function(x){ return x.gender===gender && x.school===school && String(x.no)===String(p.no); })[0];
@@ -2465,7 +2496,7 @@ function openCardReveal(gender, school, no, opts){
           clearInterval(rEl._h);
           var fameN = fameOf(gender, school, no) + (opts.gift ? 1 : 0);
           $('ovrMeme').innerHTML = ovrMemeLine(rk.pct, ab.rated)
-            + (fameN ? '<div style="margin-top:6px; color:#D84315; font-weight:800">🔥 인지도 '+fameN+(opts.gift?' (+1!)':'')+'</div>' : '');
+            + (fameN ? '<div style="margin-top:6px; color:#D84315; font-weight:800">🔥 인지도 '+fameN+(opts.gift?' (+1!)':'')+' → 평점 보너스 +'+Math.min(3, Math.round(fameN/2*10)/10)+'점</div>' : '');
           if(opts.gift) $('ovrCheer').hidden = false;
         }
       }, 55);
@@ -2566,7 +2597,11 @@ function makePlayerCard(gender, school, no){
     if(rkC.pct <= 10) noteLine = '🐐 전체 상위 '+rkC.pct+'% — 오늘의 주인공은 나!';
     else if(rkC.pct <= 30) noteLine = '🔥 상위 '+rkC.pct+'% 에이스 카드!';
     else if(rkC.pct > 60) noteLine = '😤 능력치는 숫자일 뿐 — 경기장에서 증명한다! 🔥';
-    else noteLine = ab.rated ? '⭐ 관람객 평점 '+(ab.rt?ab.rt.avg:'')+'점이 반영된 진짜 능력치!' : '🎲 대회 전 능력치는 재미로! 대회 후 평점으로 완성돼요';
+    else if(ab.rated){
+      var tt2 = ratingTotalOf(gender, school, no);
+      noteLine = '⭐ 평점 '+(tt2?tt2.total:ab.rt.avg)+' (평가 '+(ab.rt?ab.rt.avg:'-')+' + 인지도 '+(tt2?tt2.bonus:0)+') 반영!';
+    }
+    else noteLine = '🎲 대회 전 능력치는 재미로! 대회 후 평점으로 완성돼요';
     ctx.fillText(noteLine, W/2, H-66);
     ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font='400 20px Jua, sans-serif';
     ctx.fillText('#인천광역시교육청 #학교스포츠클럽 #풋살대회 #인천 '+school.replace(/\s/g,'')+' #'+p.name.replace(/\s/g,''), W/2, H-30);
