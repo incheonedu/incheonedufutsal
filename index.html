@@ -1,5 +1,16 @@
 <!DOCTYPE html>
-<html lang="ko">
+<!--
+==================================================================
+  2026 인천광역시교육감배 학교스포츠클럽 풋살대회 · 실시간 운영 플랫폼
+  ------------------------------------------------------------------
+  제작 · 기획 · 운영  ⓒ 2026  인천한들초등학교 교사  김은준 (Kim Eun-jun)
+  Original author & copyright holder: Eun-jun Kim, Incheon Handeul Elem. School
+  이 소스코드와 디자인의 저작권은 김은준에게 있습니다.
+  무단 복제 · 재배포 · 상업적 이용을 금합니다. (All rights reserved.)
+  Build signature: KEJ-HANDEUL-2026-FUTSAL / origin-token: kej1107
+==================================================================
+-->
+<html lang="ko" data-build="kej-handeul-2026" data-author="김은준">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,7 +19,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
 <style>
-/* ===== 교육장배(서부) 디자인 계승 — 라이트 블루 테마 ===== */
+/* sig:KEJ-2026-a */ /* ===== 교육장배(서부) 디자인 계승 — 라이트 블루 테마 ===== */
 :root{
   --blue:#3B7CF6; --blue-deep:#2C5FD8; --blue-soft:#E8F0FE;
   --gold:#F9A825; --red:#E53935; --green:#43A047;
@@ -296,6 +307,23 @@ button.cta:disabled{background:#B9C6DB;}
 .cheer-item{border-bottom:1px solid var(--line); padding:9px 2px; font-size:.86rem;}
 .cheer-item .ch-h{font-size:.68rem; color:var(--muted); margin-bottom:2px;}
 .cheer-item .ch-target{color:var(--blue-deep); font-weight:700;}
+.ch-msg{margin:1px 0 6px;}
+.like-row{display:flex; gap:8px; align-items:center; margin:4px 0 2px; flex-wrap:wrap;}
+.like-btn{display:inline-flex; align-items:center; gap:4px; border:1px solid var(--line); background:#fff; border-radius:999px; padding:3px 10px; font-size:.74rem; font-family:inherit; cursor:pointer; color:#6B7796; transition:.12s;}
+.like-btn:active{transform:scale(.92);}
+.like-btn.on{background:#FFEDF2; border-color:#F7A8C4; color:#D6336C; font-weight:700;}
+.like-btn.thumb.on{background:#E7F0FF; border-color:#93B8F5; color:#2C5FD8;}
+.cmt-toggle{border:none; background:none; color:#6B7796; font-size:.74rem; cursor:pointer; font-family:inherit; padding:2px 4px;}
+.cmt-box{margin:6px 0 2px 6px; border-left:2px solid #E4E8EF; padding-left:10px;}
+.cmt-item{padding:5px 0; font-size:.8rem;}
+.cmt-item.reply{margin-left:16px;}
+.cmt-h{font-size:.66rem; color:var(--muted);}
+.cmt-name{font-weight:700; color:#5C6B94;}
+.cmt-input-row{display:flex; gap:6px; margin:6px 0;}
+.cmt-input-row input{flex:1; border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:.8rem; font-family:inherit;}
+.cmt-input-row button{border:none; background:var(--blue); color:#fff; border-radius:8px; padding:7px 12px; font-size:.78rem; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap;}
+.cmt-reply-btn{border:none; background:none; color:#8A93A8; font-size:.7rem; cursor:pointer; font-family:inherit;}
+.cmt-closed{font-size:.76rem; color:#A0A8B8; background:#F4F6FA; border-radius:8px; padding:7px 10px; margin:6px 0;}
 input,select,textarea{width:100%; border:1px solid var(--line); border-radius:10px; padding:10px; font-size:.88rem; margin:4px 0; font-family:inherit; background:#fff; color:var(--ink);}
 textarea{resize:vertical; min-height:60px;}
 
@@ -559,6 +587,11 @@ textarea{resize:vertical; min-height:60px;}
     </div>
   </section>
 
+  <footer style="text-align:center; padding:22px 16px 30px; margin-top:10px; color:#8FA0C8; font-size:.74rem; line-height:1.7;">
+    <div style="opacity:.85">제작 · 기획 · 운영</div>
+    <div style="font-weight:700; color:#5C6B94; font-size:.82rem;">ⓒ 2026 인천한들초등학교 교사 김은준</div>
+    <div style="opacity:.6; margin-top:4px; font-size:.68rem;">본 사이트의 저작권은 제작자에게 있으며 무단 복제·재배포를 금합니다.</div>
+  </footer>
 </div>
 
 <button class="refresh-fab" id="btnRefresh" title="새로고침">🔄</button>
@@ -945,7 +978,7 @@ var LUCKY = 'N'; // 비밀 추첨: ?lucky=코드 접속 시 서버 대조 후 Y
 /* google.script.run 호환 어댑터 — 기존 코드 수정 없이 외부 호스팅에서 GAS API 호출 */
 var google = { script: { run: (function(){
   var FNS = ['getPublicData','getNotices','getLogosData','getTeamPhotos','getPosterData',
-             'getMusicList','getMusicTrack','castVote','addCheer','ratePlayer',
+             'getMusicList','getMusicTrack','castVote','addCheer','addComment','toggleLike','ratePlayer',
              'registerPlayer','recordFame','scratchCoupon','submitEntry','checkLucky'];
   function R(){ this._s = function(){}; this._f = function(){}; }
   R.prototype.withSuccessHandler = function(f){ this._s = f; return this; };
@@ -2303,6 +2336,102 @@ $('btnVote').addEventListener('click', function(){
 });
 
 /* ---------- 응원 ---------- */
+/* ❤️ 좋아요 로컬 상태 (기기 기억) */
+function myLikes_(){ return lsGet('sc_likes', {}); }
+function likeKey_(kind, id, react){ return kind+':'+id+':'+react; }
+function iLiked_(kind, id, react){ return myLikes_()[likeKey_(kind,id,react)] === true; }
+function heartBtn_(kind, id, likes){
+  var agg = likes[kind+':'+id] || {h:0,t:0};
+  var on = iLiked_(kind, id, 'heart');
+  return '<button class="like-btn'+(on?' on':'')+'" onclick="doLike(this,\''+kind+'\','+id+',\'heart\')">'
+    + '<span>'+(on?'❤️':'🤍')+'</span><span class="lk-n">'+(agg.h||0)+'</span></button>';
+}
+function renderCheerItem_(c, comments, likes){
+  var mine = comments.filter(function(x){ return x.cid === c.cid; });
+  var tops = mine.filter(function(x){ return !x.pid; });
+  var threadHtml = tops.map(function(t){
+    var replies = mine.filter(function(x){ return x.pid === t.id; });
+    return renderComment_(t, c.cid, likes, false)
+      + replies.map(function(rp){ return renderComment_(rp, c.cid, likes, true); }).join('');
+  }).join('');
+  var n = mine.length;
+  var open = state.data.commentsOpen !== false;
+  var inputHtml = open
+    ? '<div class="cmt-input-row"><input id="cmtin-'+c.cid+'" maxlength="100" placeholder="따뜻한 댓글을 남겨주세요"><button onclick="submitComment('+c.cid+',0)">등록</button></div>'
+    : '<div class="cmt-closed">🔒 댓글 기능이 잠시 멈춰 있어요</div>';
+  return '<div class="cheer-item">'
+    + '<div class="ch-h"><span class="ch-target">'+esc(c.school)+'</span> ('+esc(c.gender)+') · '+esc(c.name||'익명')+' · '+esc(c.time)+'</div>'
+    + '<div class="ch-msg">'+esc(c.msg)+'</div>'
+    + '<div class="like-row">'
+    +   heartBtn_('cheer', c.cid, likes)
+    +   '<button class="cmt-toggle" onclick="toggleCmtBox('+c.cid+')">💬 댓글'+(n?' '+n:'')+'</button>'
+    + '</div>'
+    + '<div class="cmt-box" id="cmtbox-'+c.cid+'" hidden>'
+    +   '<div id="cmtthread-'+c.cid+'">'+threadHtml+'</div>'
+    +   inputHtml
+    + '</div>'
+    + '</div>';
+}
+function renderComment_(cm, cid, likes, isReply){
+  var box = '';
+  if(isReply){
+    box = '<div class="cmt-item reply"><div class="cmt-h"><span class="cmt-name">'+esc(cm.name||'익명')+'</span> · '+esc(cm.time)+'</div>'
+      + '<div>'+esc(cm.msg)+'</div>'
+      + '<div class="like-row">'+heartBtn_('comment', cm.id, likes)+'</div></div>';
+  } else {
+    box = '<div class="cmt-item"><div class="cmt-h"><span class="cmt-name">'+esc(cm.name||'익명')+'</span> · '+esc(cm.time)+'</div>'
+      + '<div>'+esc(cm.msg)+'</div>'
+      + '<div class="like-row">'+heartBtn_('comment', cm.id, likes)
+      +   (state.data.commentsOpen !== false ? '<button class="cmt-reply-btn" onclick="openReply('+cid+','+cm.id+')">↳ 답글</button>' : '')+'</div>'
+      + '<div id="replyin-'+cm.id+'"></div></div>';
+  }
+  return box;
+}
+function toggleCmtBox(cid){ var b=$('cmtbox-'+cid); if(b) b.hidden = !b.hidden; }
+function openReply(cid, pid){
+  var slot = $('replyin-'+pid);
+  if(!slot) return;
+  if(slot.innerHTML){ slot.innerHTML=''; return; }
+  slot.innerHTML = '<div class="cmt-input-row"><input id="replyfield-'+pid+'" maxlength="100" placeholder="답글 달기"><button onclick="submitComment('+cid+','+pid+')">등록</button></div>';
+  var f=$('replyfield-'+pid); if(f) f.focus();
+}
+function submitComment(cid, pid){
+  var inp = pid ? $('replyfield-'+pid) : $('cmtin-'+cid);
+  if(!inp) return;
+  var msg = inp.value.trim();
+  if(!msg){ toast('댓글을 입력하세요.'); return; }
+  var last = lsGet('sc_cmt_ts', 0);
+  if(Date.now() - last < 10000){ toast('댓글은 10초에 한 번씩 남길 수 있어요.'); return; }
+  inp.disabled = true;
+  google.script.run.withSuccessHandler(function(json){
+    var r={}; try{ r=JSON.parse(json); }catch(e){}
+    inp.disabled = false;
+    if(r.ok){
+      lsSet('sc_cmt_ts', Date.now());
+      inp.value='';
+      toast(r.status==='대기' ? '접수! 본부 승인 후 게시돼요.' : '댓글이 등록되었어요! 💬');
+      fetchData(false);
+    } else if(r.reason==='banned'){ toast('사용할 수 없는 표현이 포함되어 있어요.'); }
+    else if(r.reason==='closed'){ toast('댓글 기능이 잠시 멈춰 있어요.'); fetchData(false); }
+    else toast('등록에 실패했습니다.');
+  }).withFailureHandler(function(){ inp.disabled=false; toast('통신 오류 — 다시 시도하세요.'); })
+  .addComment(JSON.stringify({ deviceId: deviceId(), cid: cid, pid: pid, name: $('cheerName')?$('cheerName').value:'', msg: msg }));
+}
+function doLike(btn, kind, id, react){
+  var key = likeKey_(kind, id, react);
+  var mine = myLikes_();
+  var willOn = !mine[key];
+  // 낙관적 UI
+  btn.classList.toggle('on', willOn);
+  var icon = btn.querySelector('span'); if(icon) icon.textContent = willOn ? '❤️' : '🤍';
+  var nEl = btn.querySelector('.lk-n');
+  if(nEl){ var cur = parseInt(nEl.textContent,10)||0; nEl.textContent = Math.max(0, cur + (willOn?1:-1)); }
+  mine[key] = willOn; if(!willOn) delete mine[key]; lsSet('sc_likes', mine);
+  google.script.run.withSuccessHandler(function(json){
+    var r={}; try{ r=JSON.parse(json); }catch(e){}
+    if(r.ok && nEl){ nEl.textContent = r.count; }
+  }).withFailureHandler(function(){}).toggleLike(JSON.stringify({ deviceId: deviceId(), kind: kind, id: id, react: react }));
+}
 function renderCheer(){
   var d = state.data;
   var gs = genders(d.teams);
@@ -2311,8 +2440,10 @@ function renderCheer(){
     gSel.innerHTML = gs.map(function(g){return '<option>'+esc(g)+'</option>';}).join('');
     syncCheerSchools();
   }
+  var comments = d.comments || [];
+  var likes = d.likes || {};
   $('cheerList').innerHTML = d.cheers.length ? d.cheers.map(function(c){
-    return '<div class="cheer-item"><div class="ch-h"><span class="ch-target">'+esc(c.school)+'</span> ('+esc(c.gender)+') · '+esc(c.name||'익명')+' · '+esc(c.time)+'</div>'+esc(c.msg)+'</div>';
+    return renderCheerItem_(c, comments, likes);
   }).join('') : '<div class="empty">첫 응원을 남겨보세요!</div>';
 
   /* 🏟️ 종별·학교별 응원 건수 현황판 */
@@ -2706,6 +2837,7 @@ function makePlayerCard(gender, school, no){
 }
 
 /* ---------- 공유 ---------- */
+var __KEJ_SIG__ = 'KEJ-HANDEUL-2026-FUTSAL:kej1107';  /* origin fingerprint — do not remove */
 var pageUrl = location.href.split('#')[0];
 if(KAKAO_JS_KEY && window.Kakao){
   try{
