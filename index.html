@@ -618,7 +618,7 @@ textarea{resize:vertical; min-height:60px;}
       <div class="reg-grid">
         <div><label class="reg-label">배번 *</label><input id="regNo" type="number" min="1" max="99" placeholder="예: 7"></div>
         <div><label class="reg-label">이름 *</label><input id="regName" maxlength="15" placeholder="이름"></div>
-        <div><label class="reg-label">포지션</label><select id="regPos"><option value="">선택</option><option>골레이로</option><option>픽소</option><option>아라</option><option>피벗</option></select></div>
+        <div><label class="reg-label">포지션</label><select id="regPos"><option value="">선택</option><option>골레이로</option><option>픽소</option><option>아라</option><option>피보</option></select></div>
         <div><label class="reg-label">학년</label><select id="regGrade"><option value="">선택</option></select></div>
         <div class="full"><label class="reg-label">각오 한마디 (60자)</label><input id="regMind" maxlength="60" placeholder="예: 최선을 다해 즐기겠습니다!"></div>
         <div class="full"><label class="reg-label">생년월일 6자리 * <span style="font-weight:500">(예: 140325 — 비밀번호 역할)</span></label><input id="regBirth" type="password" inputmode="numeric" maxlength="6" placeholder="●●●●●●"></div>
@@ -1200,27 +1200,52 @@ function logoSrcOf(school){
 /* ---------- 배경음악 (여러 곡 반복재생) ---------- */
 var music = { list:null, idx:0, playing:false, fails:0, cacheId:'', cacheSrc:'' };
 function musicSetup(){
-  if(state.data && state.data.hasMusic) $('btnMusic').classList.add('show');
+  if(!(state.data && state.data.hasMusic)) return;
+  $('btnMusic').classList.add('show');
+  if(lsGet('sc_bgm_off', false)){ $('btnMusic').textContent = '🔇'; return; }
+  if(music.armed || music.playing) return;
+  music.armed = true;
+  // 자동재생: 브라우저 정책상 첫 터치·클릭 순간부터 재생 시작
+  var kick = function(){
+    document.removeEventListener('pointerdown', kick, true);
+    document.removeEventListener('touchstart', kick, true);
+    document.removeEventListener('keydown', kick, true);
+    if(!music.playing && !lsGet('sc_bgm_off', false)) musicStart(true);
+  };
+  document.addEventListener('pointerdown', kick, true);
+  document.addEventListener('touchstart', kick, true);
+  document.addEventListener('keydown', kick, true);
+  musicStart(true); // 자동재생이 허용된 환경이면 즉시 시작
 }
 function musicStop(){
   music.playing = false;
   $('bgmAudio').pause();
   $('btnMusic').classList.remove('playing');
-  $('btnMusic').textContent = '🎵';
+  $('btnMusic').textContent = lsGet('sc_bgm_off', false) ? '🔇' : '🎵';
 }
-$('btnMusic').addEventListener('click', function(){
-  if(music.playing){ musicStop(); return; }
+function musicStart(quiet){
+  if(music.playing) return;
   music.playing = true; music.fails = 0;
   $('btnMusic').classList.add('playing');
   $('btnMusic').textContent = '🎶';
   if(music.list){ playTrack(music.idx); return; }
-  toast('배경음악을 불러오는 중… ♪');
+  if(!quiet) toast('배경음악을 불러오는 중… ♪');
   google.script.run.withSuccessHandler(function(json){
     music.list = JSON.parse(json);
-    if(!music.list.length){ toast('음악 폴더에 음원 파일이 없습니다.'); musicStop(); return; }
+    if(!music.list.length){ if(!quiet) toast('음악 폴더에 음원 파일이 없습니다.'); musicStop(); return; }
     playTrack(0);
-  }).withFailureHandler(function(){ toast('음악을 불러오지 못했습니다.'); musicStop(); })
+  }).withFailureHandler(function(){ if(!quiet) toast('음악을 불러오지 못했습니다.'); musicStop(); })
   .getMusicList();
+}
+$('btnMusic').addEventListener('click', function(){
+  if(music.playing){
+    lsSet('sc_bgm_off', true);   // 사용자가 껐으면 자동재생도 중단
+    musicStop();
+    toast('배경음악을 껐어요 🔇  다시 누르면 켜져요');
+  } else {
+    lsSet('sc_bgm_off', false);
+    musicStart(false);
+  }
 });
 function playTrack(i){
   if(!music.playing || !music.list || !music.list.length) return;
@@ -2398,7 +2423,7 @@ function makeCheerCard(gender, school){
 /* ---------- 피파 스타일 개인 능력치 카드 ---------- */
 function seedHash_(s){ var h=1779033703; for(var i=0;i<s.length;i++){ h=Math.imul(h^s.charCodeAt(i),3432918353); h=h<<13|h>>>19; } return h>>>0; }
 function seededRnd_(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0; var t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
-function posAbbr_(pos){ return {'골레이로':'GL','픽소':'FX','아라':'ALA','피벗':'PV'}[pos] || (pos?pos.slice(0,2):'ALL'); }
+function posAbbr_(pos){ return {'골레이로':'GL','픽소':'FX','아라':'ALA','피보':'PV','피벗':'PV'}[pos] || (pos?pos.slice(0,2):'ALL'); }
 function playerAbility(gender, school, p){
   var rnd = seededRnd_(seedHash_(gender+'|'+school+'|'+p.no+'|'+p.name));
   var rt = ratingOf(gender, school, p.no);
@@ -2551,84 +2576,73 @@ function makePlayerCard(gender, school, no){
   var cv = $('cheerCanvas'), ctx = cv.getContext('2d');
   var W = cv.width, H = cv.height;
 
-  /* 배경 */
-  var bg = ctx.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#0B1030'); bg.addColorStop(.55,'#131B4D'); bg.addColorStop(1,'#0B1030');
-  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
-  var glow = ctx.createRadialGradient(W/2,300,60, W/2,300,520);
-  glow.addColorStop(0,'rgba(90,120,255,.30)'); glow.addColorStop(1,'rgba(90,120,255,0)');
-  ctx.fillStyle = glow; ctx.fillRect(0,0,W,H);
-  ctx.save(); ctx.globalAlpha=.05; ctx.strokeStyle='#fff'; ctx.lineWidth=2;
-  for(var s=-H; s<W; s+=34){ ctx.beginPath(); ctx.moveTo(s,H); ctx.lineTo(s+H,0); ctx.stroke(); }
-  ctx.restore();
-  ctx.textAlign='center';
-  ctx.fillStyle='#8FA4E8'; ctx.font='700 26px Jua, sans-serif';
-  ctx.fillText('2026 인천광역시교육감배 학교스포츠클럽 풋살대회', W/2, 62);
-  ctx.fillStyle='#F5D573'; ctx.font='700 22px Jua, sans-serif';
-  ctx.fillText(ab.rated ? '— OFFICIAL PLAYER CARD · 평점 반영 —' : '— OFFICIAL PLAYER CARD —', W/2, 96);
+  /* 사진·교표 소스 결정 */
+  var key = gender+'|'+school;
+  var photoBase = p.photo ? p.photo.replace(/\.(png|jpg|jpeg|gif|webp)\s*$/i,'') : '';
+  var photoSrc = photoBase && state.photos[key] ? state.photos[key][photoBase] : '';
+  var logo = state.logos[school];
+  if(!logo){ var nm=school.replace(/\s/g,''); for(var k in state.logos){ if(k.replace(/\s/g,'')===nm){ logo=state.logos[k]; break; } } }
 
-  /* 골드 실드 */
-  var cx = W/2, cTop = 128, cBot = 800, cw = 530;
-  function shield(inset){
-    var l=cx-cw/2+inset, r=cx+cw/2-inset, t=cTop+inset, b=cBot-inset, ch=46;
-    ctx.beginPath();
-    ctx.moveTo(l+ch,t); ctx.lineTo(r-ch,t); ctx.lineTo(r,t+ch);
-    ctx.lineTo(r,b-90); ctx.quadraticCurveTo(r,b-30,cx+70,b-12);
-    ctx.quadraticCurveTo(cx,b+4,cx-70,b-12);
-    ctx.quadraticCurveTo(l,b-30,l,b-90);
-    ctx.lineTo(l,t+ch); ctx.closePath();
-  }
-  ctx.save(); ctx.shadowColor='rgba(0,0,0,.55)'; ctx.shadowBlur=34; ctx.shadowOffsetY=12;
-  var gold = ctx.createLinearGradient(0,cTop,0,cBot);
-  gold.addColorStop(0,'#F9EDBB'); gold.addColorStop(.45,'#E8C864'); gold.addColorStop(1,'#B8913A');
-  shield(0); ctx.fillStyle=gold; ctx.fill(); ctx.restore();
-  shield(10); ctx.strokeStyle='rgba(120,85,20,.55)'; ctx.lineWidth=2.5; ctx.stroke();
-  ctx.save(); shield(0); ctx.clip();
-  ctx.globalAlpha=.07; ctx.fillStyle='#fff';
-  ctx.beginPath(); ctx.ellipse(cx-190,cTop+90,300,130,-.5,0,Math.PI*2); ctx.fill();
-  ctx.restore();
+  /* ── 오버레이 + 텍스트 (사진이 메인, 글자는 가장자리에 작게) ── */
+  function finishCard(){
+    var gTop = ctx.createLinearGradient(0,0,0,H*0.26);
+    gTop.addColorStop(0,'rgba(0,0,0,.62)'); gTop.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=gTop; ctx.fillRect(0,0,W,H*0.26);
+    var gBot = ctx.createLinearGradient(0,H*0.44,0,H);
+    gBot.addColorStop(0,'rgba(2,8,6,0)'); gBot.addColorStop(.55,'rgba(2,8,6,.62)'); gBot.addColorStop(1,'rgba(2,8,6,.94)');
+    ctx.fillStyle=gBot; ctx.fillRect(0,H*0.44,W,H*0.56);
+    var gl = ctx.createRadialGradient(W*0.28,-40,40, W*0.28,-40,560);
+    gl.addColorStop(0,'rgba(80,225,150,.22)'); gl.addColorStop(1,'rgba(80,225,150,0)');
+    ctx.fillStyle=gl; ctx.fillRect(0,0,W,H*0.7);
 
-  /* 좌상단: OVR + 포지션 + 교표 */
-  var lx = cx-cw/2+88;
-  ctx.fillStyle='#3B2C08'; ctx.font='800 96px Jua, sans-serif';
-  ctx.fillText(ab.ovr, lx, cTop+128);
-  ctx.font='800 34px Jua, sans-serif';
-  ctx.fillText(posAbbr_(p.pos), lx, cTop+172);
-  ctx.strokeStyle='rgba(120,85,20,.5)'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(lx-46,cTop+192); ctx.lineTo(lx+46,cTop+192); ctx.stroke();
-  /* 우상단: 배번 + 종별 */
-  var rx = cx+cw/2-92;
-  ctx.font='800 44px Jua, sans-serif';
-  ctx.fillText('NO.'+p.no, rx, cTop+80);
-  ctx.font='700 24px Jua, sans-serif';
-  ctx.fillText(gender, rx, cTop+116);
-  var rgn = regionOf(school, gender);
-  if(rgn){ ctx.fillText(rgn, rx, cTop+148); }
-  var fmC = fameOf(gender, school, no);
-  if(fmC){ ctx.fillStyle='#8A2B06'; ctx.font='800 24px Jua, sans-serif'; ctx.fillText('🔥 인지도 '+fmC, rx, cTop+184); ctx.fillStyle='#3B2C08'; }
+    ctx.textAlign='left';
+    ctx.fillStyle='rgba(255,255,255,.92)'; ctx.font='700 24px Jua, sans-serif';
+    ctx.fillText('2026 교육감배 학교스포츠클럽 풋살대회', 40, 56);
+    ctx.fillStyle='rgba(140,235,175,.9)'; ctx.font='700 17px Jua, sans-serif';
+    ctx.fillText(ab.rated ? 'OFFICIAL PLAYER CARD · 평점 반영' : 'OFFICIAL PLAYER CARD', 40, 86);
+    ctx.textAlign='right';
+    ctx.fillStyle='rgba(255,255,255,.95)'; ctx.font='800 30px Jua, sans-serif';
+    ctx.fillText('NO.'+p.no, W-40, 60);
+    var rgn = regionOf(school, gender);
+    ctx.fillStyle='rgba(255,255,255,.75)'; ctx.font='700 19px Jua, sans-serif';
+    ctx.fillText(gender + (rgn ? ' · '+rgn : ''), W-40, 90);
+    var fmC = fameOf(gender, school, no);
+    if(fmC){ ctx.fillStyle='#FFB25E'; ctx.font='800 20px Jua, sans-serif'; ctx.fillText('🔥 인지도 '+fmC, W-40, 120); }
 
-  function drawStatsAndFinish(){
-    /* 이름 */
-    ctx.textAlign='center'; ctx.fillStyle='#241A05';
-    ctx.font='800 62px Jua, sans-serif';
-    ctx.fillText(p.name, cx, cBot-248);
-    ctx.font='700 26px Jua, sans-serif'; ctx.fillStyle='#4A3608';
-    ctx.fillText(school + (p.pos?' · '+p.pos:'') + (p.grade?' · '+p.grade:''), cx, cBot-210);
-    ctx.strokeStyle='rgba(120,85,20,.5)'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(cx-200,cBot-188); ctx.lineTo(cx+200,cBot-188); ctx.stroke();
-    /* 능력치 2열 3행 */
-    ctx.font='700 30px Jua, sans-serif';
+    ctx.textAlign='left';
+    var nameFs = 86;
+    ctx.font='800 '+nameFs+'px Jua, sans-serif';
+    while(nameFs > 44 && ctx.measureText(p.name).width > W-250){ nameFs -= 6; ctx.font='800 '+nameFs+'px Jua, sans-serif'; }
+    ctx.save(); ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=16; ctx.shadowOffsetY=4;
+    ctx.fillStyle='#FFFFFF';
+    ctx.fillText(p.name, 44, 704);
+    ctx.restore();
+    ctx.fillStyle='rgba(200,240,215,.92)'; ctx.font='700 24px Jua, sans-serif';
+    ctx.fillText(school + (p.pos?' · '+p.pos:'') + (p.grade?' · '+p.grade:''), 46, 744);
+    ctx.strokeStyle='rgba(140,235,175,.45)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(46,764); ctx.lineTo(460,764); ctx.stroke();
+    ctx.font='700 21px Jua, sans-serif';
     for(var i=0;i<6;i++){
-      var col = i<3 ? cx-120 : cx+120;
-      var row = cBot-148 + (i%3)*44;
-      ctx.textAlign='right'; ctx.fillStyle='#241A05';
-      ctx.fillText(ab.stats[i].v, col-14, row);
-      ctx.textAlign='left'; ctx.fillStyle='#5C450F';
-      ctx.fillText(ab.stats[i].label, col-4, row);
+      var sx = 46 + (i%3)*152;
+      var sy = 798 + Math.floor(i/3)*32;
+      ctx.fillStyle='rgba(255,255,255,.62)';
+      ctx.fillText(ab.stats[i].label, sx, sy);
+      ctx.fillStyle='#FFFFFF'; ctx.font='800 21px Jua, sans-serif';
+      ctx.fillText(String(ab.stats[i].v), sx+76, sy);
+      ctx.font='700 21px Jua, sans-serif';
     }
-    ctx.beginPath(); ctx.moveTo(cx,cBot-176); ctx.lineTo(cx,cBot-50); ctx.strokeStyle='rgba(120,85,20,.35)'; ctx.stroke();
-    /* 하단 안내 + 해시태그 */
-    ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='700 24px Jua, sans-serif';
+    var ox = W-104, oy = 706;
+    ctx.beginPath(); ctx.arc(ox, oy, 58, 0, Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,.46)'; ctx.fill();
+    ctx.lineWidth=3; ctx.strokeStyle='rgba(140,235,175,.85)'; ctx.stroke();
+    ctx.textAlign='center';
+    ctx.fillStyle='rgba(140,235,175,.9)'; ctx.font='800 17px Jua, sans-serif';
+    ctx.fillText('OVR', ox, oy-20);
+    ctx.fillStyle='#FFFFFF'; ctx.font='800 46px Jua, sans-serif';
+    ctx.fillText(String(ab.ovr), ox, oy+24);
+    ctx.font='800 18px Jua, sans-serif'; ctx.fillStyle='rgba(255,255,255,.85)';
+    ctx.fillText(posAbbr_(p.pos), ox, oy+80);
+
     var rkC = abilityRankOf(gender, school, no);
     var noteLine;
     if(rkC.pct <= 10) noteLine = '🐐 전체 상위 '+rkC.pct+'% — 오늘의 주인공은 나!';
@@ -2639,40 +2653,56 @@ function makePlayerCard(gender, school, no){
       noteLine = '⭐ 평점 '+(tt2?tt2.total:ab.rt.avg)+' (평가 '+(ab.rt?ab.rt.avg:'-')+' + 인지도 '+(tt2?tt2.bonus:0)+') 반영!';
     }
     else noteLine = '🎲 대회 전 능력치는 재미로! 대회 후 평점으로 완성돼요';
-    ctx.fillText(noteLine, W/2, H-66);
-    ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font='400 20px Jua, sans-serif';
-    ctx.fillText('#인천광역시교육청 #학교스포츠클럽 #풋살대회 #인천 '+school.replace(/\s/g,'')+' #'+p.name.replace(/\s/g,''), W/2, H-30);
+    ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='700 19px Jua, sans-serif';
+    ctx.fillText(noteLine, W/2, 862);
+    ctx.fillStyle='rgba(255,255,255,.5)'; ctx.font='400 15px Jua, sans-serif';
+    ctx.fillText('#인천광역시교육청 #학교스포츠클럽 #풋살대회 #인천 '+school.replace(/\s/g,'')+' #'+p.name.replace(/\s/g,''), W/2, 888);
     sharePng_(cv, school+'_'+p.name+'_선수카드.png', ab.rated ? '평점 반영 선수 카드 완성! 인스타에 자랑해요 🎴' : '나만의 선수 카드 완성! 인스타에 공유해요 🎴');
   }
 
-  /* 중앙: 선수 사진 (없으면 교표, 그것도 없으면 이니셜) */
-  var py = cTop + 282;
-  ctx.beginPath(); ctx.arc(cx, py, 108, 0, Math.PI*2);
-  ctx.fillStyle='#FFFDF4'; ctx.fill();
-  ctx.lineWidth=6; ctx.strokeStyle='rgba(120,85,20,.55)'; ctx.stroke();
-  function drawCircleImg(src, done){
+  function darkBase(){
+    var bg = ctx.createLinearGradient(0,0,0,H);
+    bg.addColorStop(0,'#08120D'); bg.addColorStop(.5,'#0D2418'); bg.addColorStop(1,'#07100B');
+    ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+  }
+  function noPhotoCard_(){
+    darkBase();
+    var glow = ctx.createRadialGradient(W/2,400,60, W/2,400,480);
+    glow.addColorStop(0,'rgba(80,225,150,.20)'); glow.addColorStop(1,'rgba(80,225,150,0)');
+    ctx.fillStyle=glow; ctx.fillRect(0,0,W,H);
+    if(logo){
+      var lg = new Image();
+      lg.onload = function(){
+        ctx.save();
+        ctx.beginPath(); ctx.arc(W/2, 390, 150, 0, Math.PI*2);
+        ctx.fillStyle='rgba(255,255,255,.1)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(W/2, 390, 140, 0, Math.PI*2); ctx.clip();
+        var r2 = Math.max(280/lg.width, 280/lg.height);
+        ctx.drawImage(lg, W/2-lg.width*r2/2, 390-lg.height*r2/2, lg.width*r2, lg.height*r2);
+        ctx.restore(); finishCard();
+      };
+      lg.onerror = function(){ initialMark_(); finishCard(); };
+      lg.src = logo;
+    } else { initialMark_(); finishCard(); }
+  }
+  function initialMark_(){
+    ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,255,255,.14)'; ctx.font='800 300px Jua, sans-serif';
+    ctx.fillText((p.name||'?').slice(0,1), W/2, 500);
+  }
+
+  if(photoSrc){
     var img = new Image();
     img.onload = function(){
-      ctx.save(); ctx.beginPath(); ctx.arc(cx, py, 98, 0, Math.PI*2); ctx.clip();
-      var r = Math.max(196/img.width, 196/img.height);
-      ctx.drawImage(img, cx-img.width*r/2, py-img.height*r/2, img.width*r, img.height*r);
-      ctx.restore(); done();
+      darkBase();
+      var r = Math.max(W/img.width, H/img.height);
+      ctx.drawImage(img, (W-img.width*r)/2, (H-img.height*r)/2, img.width*r, img.height*r);
+      finishCard();
     };
-    img.onerror = done;
-    img.src = src;
-  }
-  var key = gender+'|'+school;
-  var photoBase = p.photo ? p.photo.replace(/\.(png|jpg|jpeg|gif|webp)\s*$/i,'') : '';
-  var photoSrc = photoBase && state.photos[key] ? state.photos[key][photoBase] : '';
-  var logo = state.logos[school];
-  if(!logo){ var nm=school.replace(/\s/g,''); for(var k in state.logos){ if(k.replace(/\s/g,'')===nm){ logo=state.logos[k]; break; } } }
-  if(photoSrc){ drawCircleImg(photoSrc, drawStatsAndFinish); }
-  else if(logo){ drawCircleImg(logo, drawStatsAndFinish); }
-  else {
-    ctx.fillStyle='#2C5FD8'; ctx.font='800 96px Jua, sans-serif'; ctx.textAlign='center';
-    ctx.fillText((p.name||'?').slice(0,1), cx, py+32);
-    drawStatsAndFinish();
-  }
+    img.onerror = function(){ noPhotoCard_(); };
+    img.src = photoSrc;
+  } else { noPhotoCard_(); }
 }
 
 /* ---------- 공유 ---------- */
@@ -2718,14 +2748,22 @@ function initTurfBg_(){
 function renderPosterCard(){
   var el = $('homePoster');
   if(!el || !state.poster) return;
+  // 구형 TV·태블릿 브라우저 호환: 대용량 data URI를 innerHTML 파싱에 태우지 않고 DOM으로 직접 조립
   el.innerHTML = '<div class="poster-card">'
-    + '<img src="'+state.poster+'" alt="2026 교육감배 학교스포츠클럽 풋살대회 포스터" onclick="openPosterView()">'
+    + '<div class="pc-imgbox"></div>'
     + '<div class="pc-cap">포스터를 누르면 크게 볼 수 있어요 🔍</div>'
     + '<div class="poster-btns">'
-    + '<button style="background:linear-gradient(45deg,#F58529,#DD2A7B 55%,#8134AF); color:#fff" onclick="posterInsta()">\uD83D\uDCF8 인스타 공유</button>'
-    + '<button style="background:#fff; color:var(--blue-deep); border:1.5px solid var(--line)" onclick="instaSaveImg()">\uD83D\uDDBC\uFE0F 이미지 저장</button>'
+    + '<button style="background:linear-gradient(45deg,#F58529,#DD2A7B 55%,#8134AF); color:#fff" onclick="posterInsta()">📸 인스타 공유</button>'
+    + '<button style="background:#fff; color:var(--blue-deep); border:1.5px solid var(--line)" onclick="instaSaveImg()">🖼️ 이미지 저장</button>'
     + '</div></div>';
+  var img = document.createElement('img');
+  img.alt = '2026 교육감배 학교스포츠클럽 풋살대회 포스터';
+  img.onclick = openPosterView;
+  img.onerror = function(){ var c=el.querySelector('.pc-cap'); if(c) c.textContent='포스터를 불러오지 못했어요 — 새로고침 해주세요'; };
+  img.src = state.poster;
+  el.querySelector('.pc-imgbox').appendChild(img);
 }
+window.addEventListener('load', function(){ try{ renderPosterCard(); }catch(e){} });
 function openPosterView(){ $('posterViewImg').src = state.poster; $('posterView').classList.add('on'); }
 function posterInsta(){
   if(navigator.clipboard){ navigator.clipboard.writeText(pageUrl).catch(function(){}); }
