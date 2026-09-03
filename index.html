@@ -2775,7 +2775,7 @@ function fetchPoster(){
   google.script.run.withSuccessHandler(function(json){
     var r = {};
     try { r = JSON.parse(json); } catch(e){}
-    if(r.img){ state.poster = r.img; renderPosterCard(); }
+    if(r.img && r.img.slice(0,11) === 'data:image/'){ state.poster = r.img; renderPosterCard(); }
   }).getPosterData();
 }
 function dataUrlToFile_(dataUrl, name){
